@@ -1,21 +1,31 @@
-import os
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.document_loaders import DirectoryLoader, TextLoader
+from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_huggingface import HuggingFaceEmbeddings  # Updated import
+from langchain_community.vectorstores import FAISS
+import sys
 
-# Load files
-loader = DirectoryLoader("data", glob="**/*.md", loader_cls=TextLoader)
+# Load markdown files from the docs folder
+loader = DirectoryLoader('docs', glob="**/*.md", loader_cls=TextLoader)
 docs = loader.load()
 
-# Split content
-splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-chunks = splitter.split_documents(docs)
+# Check if any documents were loaded
+if not docs:
+    print("No markdown files found in 'docs' directory. Please check the folder and try again.")
+    sys.exit()
 
-# Embed chunks
+# Split documents into smaller chunks
+splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+split_docs = splitter.split_documents(docs)
+
+# Check again if the splitter returned any chunks
+if not split_docs:
+    print("Documents were loaded but couldn't be split. Check content or format.")
+    sys.exit()
+
+# Create embeddings and build FAISS index
 embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-db = FAISS.from_documents(chunks, embedding_model)
+vectorstore = FAISS.from_documents(split_docs, embedding_model)
 
-# Save index
-os.makedirs("vectorstore", exist_ok=True)
-db.save_local("vectorstore/faiss_index")
+# Save the index
+vectorstore.save_local("vectorstore/faiss_index")
+print("FAISS index built and saved successfully.")
